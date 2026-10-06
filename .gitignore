@@ -1,0 +1,14 @@
+dist/
+node_modules/
+
+# Pi agent scratch state (local todo/plan files, may reference local paths)
+.pi/
+
+# Local env / secrets
+.env
+.env.*
+*.local
+
+# Editor / OS noise
+.DS_Store
+*.log
