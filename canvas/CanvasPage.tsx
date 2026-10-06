@@ -769,7 +769,7 @@ export function CanvasPage() {
           row actions the built-in thread view has. Collapsible so it does not
           permanently cover the canvas. */}
       <div
-        className={`pointer-events-auto absolute w-72 ${launcherPos === null ? "right-3 top-[7rem]" : ""}`}
+        className={`pointer-events-auto absolute w-[22.5rem] ${launcherPos === null ? "right-3 top-[7rem]" : ""}`}
         data-launcher
         style={{
           zIndex: LAUNCHER_Z,
