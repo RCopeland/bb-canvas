@@ -1,17 +1,9 @@
-// The one thread row.
+// The one thread row, for the canvas's floating "Thread windows" panel.
 //
-// Both surfaces render this: the canvas's floating "Thread windows" panel and
-// the sidebar list registered through `experimental_threadList`. There is
-// deliberately a single implementation — the whole point of registering a real
-// sidebar list is that the canvas stops being a hand-rolled copy that drifts
-// from the host, and two row components would reintroduce exactly that problem
-// one level down.
-//
-// The only thing the surfaces disagree about is what a click does:
-//   * canvas  → open a floating window over the drawing
-//   * sidebar → navigate to the thread (and close the mobile drawer)
-//
-// so that is the one prop that varies (`onActivate`).
+// An earlier version shared this row with a sidebar list registered through
+// `experimental_threadList`. That registration is gone, so this is now the only
+// consumer — but it is deliberately still its own component, because the
+// per-row hooks below have a hooks rule that is easy to violate in a parent.
 //
 // Hooks discipline (two hard rules, both easy to violate here):
 //  1. Every hook runs unconditionally — no hook after an early return.
@@ -34,7 +26,6 @@ import {
   threadPresence,
   type Presence,
 } from "./types";
-import type { ReactNode } from "react";
 
 /** Presence dot colour, one class per presence state. */
 export const PRESENCE_DOT: Record<Presence, string> = {
@@ -58,9 +49,11 @@ export interface ThreadRowProps {
   actions: PluginSidebarThreadActions;
   /** What a click on the row body does. Varies by surface. */
   onActivate: (threadId: string) => void;
+  /**
+   * Toggles a parent's children. Called by the inline chevron, which stops the
+   * click from reaching the row body so expanding never also activates.
+   */
   onToggleExpanded: (threadId: string) => void;
-  /** Extra trailing indicator, e.g. the canvas's "open window" eye. */
-  trailing?: ReactNode;
   /**
    * Tailwind classes for the row button. The canvas panel and the sidebar have
    * different densities, so the surface supplies its own.
@@ -83,7 +76,6 @@ export function ThreadRow({
   actions,
   onActivate,
   onToggleExpanded,
-  trailing,
   rowClassName,
 }: ThreadRowProps) {
   // Per-row hooks — one instance of this component per row, so calling them
@@ -125,23 +117,22 @@ export function ThreadRow({
   return (
     <li
       className="flex items-center"
-      style={{ paddingLeft: `${depth * 12}px` }}
+      style={depth > 0 ? { paddingLeft: `${depth * 12}px` } : undefined}
     >
-      {/* The caret column is rendered for EVERY row, not just parents. The
-          caret is a flex sibling of the row button, so rendering it only for
-          parents pushes those rows right of childless rows and makes the list
-          look indented at random. Leaves get an inert spacer of the same width
-          instead, so all names share one left edge and only real nesting (a
-          nonzero `depth`) moves a row.
+      {/* No caret column. There used to be one — a chevron for parents and an
+          inert same-width spacer for leaves — so all names shared a left edge.
+          It reserved ~20px on every row to serve the minority of rows that have
+          children, which made the list look randomly indented.
 
-          For a parent the caret is its own control: clicking the row body
-          activates the thread, clicking the caret only expands/collapses
-          children, so one click means one thing and both actions stay keyboard
-          reachable without a double-click. */}
+          Nesting is now just `depth` moving the row over, and a parent's
+          chevron is a sibling of the row button (NOT nested inside it — a
+          button inside a button is invalid and breaks screen readers). Being a
+          sibling is also what lets one click mean one thing: the chevron
+          toggles children, the row body activates the thread. */}
       {isParent ? (
         <button
           type="button"
-          className="inline-flex size-5 shrink-0 items-center justify-center rounded text-muted-foreground hover:bg-accent hover:text-foreground"
+          className="inline-flex size-6 shrink-0 items-center justify-center rounded text-muted-foreground hover:bg-accent hover:text-foreground"
           aria-label={
             isExpanded ? `Collapse ${name} children` : `Expand ${name} children`
           }
@@ -150,12 +141,10 @@ export function ThreadRow({
         >
           <Icon
             name={isExpanded ? "ChevronDown" : "ChevronRight"}
-            className="size-3"
+            className="size-4"
           />
         </button>
-      ) : (
-        <span className="size-5 shrink-0" aria-hidden="true" />
-      )}
+      ) : null}
 
       <button
         type="button"
@@ -164,29 +153,32 @@ export function ThreadRow({
         {...split.splitProps}
         className={
           rowClassName ??
-          "flex min-w-0 flex-1 items-center gap-2 rounded px-1.5 py-1 text-left text-xs hover:bg-accent"
+          // Keep this the single source of row density for the canvas panel:
+          // `px-2 py-1.5` gives each row breathing room, and `text-sm` reads
+          // comfortably beside the `size-4` icons and `size-6` action buttons.
+          "flex min-w-0 flex-1 items-center gap-2 rounded px-2 py-1.5 text-left text-sm hover:bg-accent"
         }
         onClick={() => onActivate(thread.id)}
-        aria-label={label}
         aria-current={isActive ? "true" : undefined}
+        aria-label={label}
         title={label}
       >
         <span
-          className={`size-1.5 shrink-0 rounded-full ${PRESENCE_DOT[presence]}`}
+          className={`size-2 shrink-0 rounded-full ${PRESENCE_DOT[presence]}`}
           aria-hidden="true"
         />
         <span className="min-w-0 flex-1 truncate">{name}</span>
         {thread.isPinned ? (
           <Icon
             name="Star"
-            className="size-3 shrink-0 fill-current text-amber-500"
+            className="size-4 shrink-0 fill-current text-amber-500"
             aria-hidden="true"
           />
         ) : null}
         {attention ? (
           <Icon
             name="AlertCircle"
-            className="size-3 shrink-0 text-destructive"
+            className="size-4 shrink-0 text-destructive"
             aria-hidden="true"
           />
         ) : null}
@@ -198,47 +190,35 @@ export function ThreadRow({
           flow, so optimistic updates and confirmations behave as they do in the
           built-in list. */}
       <span className="flex shrink-0 items-center">
-        {trailing}
         <button
           type="button"
-          className="inline-flex size-5 shrink-0 items-center justify-center rounded text-muted-foreground hover:bg-accent hover:text-foreground"
+          className="inline-flex size-6 shrink-0 items-center justify-center rounded text-muted-foreground hover:bg-accent hover:text-foreground"
           aria-label={thread.isPinned ? `Unpin ${name}` : `Pin ${name}`}
           title={thread.isPinned ? `Unpin ${name}` : `Pin ${name}`}
           onClick={() => void actions.setPinned(thread.id, !thread.isPinned)}
         >
           <Icon
             name="Pin"
-            className={`size-3${thread.isPinned ? " fill-current text-amber-500" : ""}`}
+            className={`size-4${thread.isPinned ? " fill-current text-amber-500" : ""}`}
           />
         </button>
         <button
           type="button"
-          className="inline-flex size-5 shrink-0 items-center justify-center rounded text-muted-foreground hover:bg-accent hover:text-foreground"
+          className="inline-flex size-6 shrink-0 items-center justify-center rounded text-muted-foreground hover:bg-accent hover:text-foreground"
           aria-label={thread.isUnread ? `Mark ${name} read` : `Mark ${name} unread`}
           title={thread.isUnread ? `Mark ${name} read` : `Mark ${name} unread`}
           onClick={() => void actions.setRead(thread.id, thread.isUnread)}
         >
-          <Icon name={thread.isUnread ? "Mail" : "MailOpen"} className="size-3" />
+          <Icon name={thread.isUnread ? "Mail" : "MailOpen"} className="size-4" />
         </button>
-        {isActive ? null : (
-          <button
-            type="button"
-            className="inline-flex size-5 shrink-0 items-center justify-center rounded text-muted-foreground hover:bg-accent hover:text-foreground"
-            aria-label={`Open ${name} in the main app`}
-            title={`Open ${name} in the main app`}
-            onClick={() => actions.open(thread.id)}
-          >
-            <Icon name="ExternalLink" className="size-3" />
-          </button>
-        )}
         <button
           type="button"
-          className="inline-flex size-5 shrink-0 items-center justify-center rounded text-muted-foreground hover:bg-accent hover:text-foreground"
+          className="inline-flex size-6 shrink-0 items-center justify-center rounded text-muted-foreground hover:bg-accent hover:text-foreground"
           aria-label={`Archive ${name}`}
           title={`Archive ${name}`}
           onClick={() => actions.archive(thread.id)}
         >
-          <Icon name="Archive" className="size-3" />
+          <Icon name="Archive" className="size-4" />
         </button>
       </span>
     </li>

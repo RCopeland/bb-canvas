@@ -1,14 +1,14 @@
 // The canvas's "Thread windows" panel: a floating list that opens threads as
 // windows over the drawing.
 //
-// This is the canvas-local surface. The sidebar surface
-// (`SidebarThreadList.tsx`) is registered as bb's real thread list; both render
-// the same `ThreadRow`, so there is one row implementation rather than two that
-// drift apart.
+// This is the plugin's only thread list. An earlier version also registered a
+// sidebar list through `experimental_threadList`, and the two surfaces shared
+// this row so they could not drift. That registration is gone — it took over
+// bb's sidebar everywhere in bb — so the panel below is canvas-local and bb's
+// own sidebar list is untouched.
 //
-// What differs is only what a click does: here it opens a floating window on
-// the canvas, because the whole point of this panel is to keep the drawing in
-// view. The sidebar navigates.
+// A click opens a floating window on the canvas rather than navigating, because
+// the whole point of this panel is to keep the drawing in view.
 import { Fragment, useMemo } from "react";
 import type { PluginSidebarThread } from "@get-bb/plugin-sdk/app";
 import {
@@ -82,15 +82,6 @@ function ThreadLauncherTree({
           actions={actions}
           onActivate={onOpenWindow}
           onToggleExpanded={onToggleExpanded}
-          trailing={
-            openThreadIds.has(thread.id) ? (
-              <Icon
-                name="Eye"
-                className="mr-0.5 size-3 shrink-0 text-muted-foreground"
-                aria-hidden="true"
-              />
-            ) : null
-          }
         />
         {expanded.has(thread.id)
           ? childThreads.map((child) => renderThread(child, depth + 1))
@@ -102,7 +93,7 @@ function ThreadLauncherTree({
   if (threads.length === 0) {
     return (
       <p
-        className="px-2 py-3 text-center text-xs text-muted-foreground"
+        className="px-3 py-4 text-center text-sm text-muted-foreground"
         role="status"
       >
         No threads yet.
@@ -151,13 +142,46 @@ export interface ThreadLauncherProps {
  * keeps that true if the dots ever gain a glyph or a title.
  */
 function GripDots() {
+  // Drawn with inline styles on purpose.
+  //
+  // The original version set `grid grid-cols-2 gap-x-[3px] gap-y-[3px]`.
+  // `gap-x-[3px]` and the dot `size-[2px]` DO compile in this setup, but
+  // `grid-cols-2` does NOT — this plugin's CSS pipeline emits no `grid-cols-*`
+  // utilities. So the wrapper got `display: grid` with a single implicit
+  // column, the six dots stacked into a 2px-wide sliver instead of reading as a
+  // grip, and the handle looked missing entirely.
+  //
+  // Inline styles are correct rather than merely convenient here: a hairline
+  // grid must be exact, and this removes any dependency on which utilities the
+  // pipeline happens to emit. If you switch it back to classes, verify
+  // `grid-cols-*` is actually generated before trusting it.
+  //
+  // NOT an `<Icon>`: the host resolves icon names from its own registry at
+  // runtime, and an unknown name renders nothing at all.
+  //
+  // `aria-hidden` is defensive rather than load-bearing: six empty spans carry
+  // no text, so screen readers would skip them anyway.
   return (
     <span
       aria-hidden="true"
-      className="grid shrink-0 grid-cols-2 gap-x-[3px] gap-y-[3px] opacity-60"
+      style={{
+        display: "grid",
+        gridTemplateColumns: "repeat(2, 2px)",
+        gap: "3px",
+        flexShrink: 0,
+      }}
     >
       {Array.from({ length: 6 }, (_, index) => (
-        <span key={index} className="size-[2px] rounded-full bg-current" />
+        <span
+          key={index}
+          style={{
+            width: "2px",
+            height: "2px",
+            borderRadius: "9999px",
+            background: "currentColor",
+            opacity: 0.6,
+          }}
+        />
       ))}
     </span>
   );
@@ -205,38 +229,38 @@ export function ThreadLauncher({
         </span>
         <button
           type="button"
-          className="flex min-w-0 flex-1 items-center gap-2 px-2.5 py-2 text-left text-xs font-semibold hover:bg-accent/50"
+          className="flex min-w-0 flex-1 items-center gap-2 px-2.5 py-2 text-left text-sm font-semibold hover:bg-accent/50"
           aria-expanded={open}
           onClick={onToggleOpen}
         >
-          <Icon name="AppWindow" className="size-3.5" />
+          <Icon name="AppWindow" className="size-4" />
           <span className="flex-1">Thread windows</span>
           <span className="text-muted-foreground">{openThreadIds.size}</span>
           <Icon
             name={open ? "ChevronUp" : "ChevronDown"}
-            className="size-3.5 text-muted-foreground"
+            className="size-4 text-muted-foreground"
           />
         </button>
         <button
           type="button"
-          className="flex shrink-0 items-center gap-1.5 border-l border-border px-2.5 text-xs font-medium hover:bg-accent focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring aria-pressed:bg-state-active aria-pressed:text-foreground"
+          className="flex shrink-0 items-center gap-1.5 border-l border-border px-2.5 text-sm font-medium hover:bg-accent focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring aria-pressed:bg-state-active aria-pressed:text-foreground"
           aria-pressed={composing}
           onClick={onToggleCompose}
           title="Start a new thread"
         >
-          <Icon name={composing ? "X" : "Plus"} className="size-3.5" />
+          <Icon name={composing ? "X" : "Plus"} className="size-4" />
           <span>{composing ? "Cancel" : "New thread"}</span>
         </button>
       </div>
       {open ? (
-        <div className="max-h-80 overflow-y-auto border-t border-border p-1">
+        <div className="max-h-80 overflow-y-auto border-t border-border p-2">
           <ThreadLauncherTree
             threads={threads}
             projects={projects}
             openThreadIds={openThreadIds}
             expanded={expanded}
-            onToggleExpanded={onToggleExpanded}
             onOpenWindow={onOpenWindow}
+            onToggleExpanded={onToggleExpanded}
           />
         </div>
       ) : null}
