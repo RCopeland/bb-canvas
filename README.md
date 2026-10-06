@@ -16,24 +16,22 @@ bb plugin reload canvas
 
 Requires bb `>=0.44` and plugin SDK `>=0.5.29`.
 
-The install/reload id is `canvas` (the plugin's internal id), which is
-intentionally independent of the package name `bb-canvas` — so an existing
-install keeps its saved canvas scene and window layout across the rename.
+The package is named `bb-plugin-canvas`, which is what sets the install and
+reload id (`bb` strips the `bb-plugin-` prefix, so the id is `canvas`). That
+prefix is mandatory — `bb`'s own scaffolder forces a name of the form
+`bb-plugin-<id>` — so the package name cannot be shortened to `bb-canvas`. The
+GitHub repo and the product name are `bb-canvas`; only the package name keeps
+the prefix.
 
-> **This plugin replaces your sidebar thread list.** While it is enabled, the
-> canvas's thread list is registered as bb's sidebar thread list through the
-> exclusive `experimental_threadList` slot. bb activates that automatically —
-> you do not opt in — so your sidebar list everywhere becomes this one, not just
-> on the Canvas page. To get bb's own list back, pin
-> `thread-list/thread-list` under **Settings → Appearance → Sidebar**, or run:
->
-> ```sh
-> bb settings ui set sidebar.threadListProvider thread-list/thread-list
-> ```
->
-> The upshot is that the canvas and the sidebar render the *same* list from one
-> implementation. See [PLUGIN_OVERVIEW.md](./PLUGIN_OVERVIEW.md) for why the
-> plugin does it this way and what the v1 list does and does not cover.
+This plugin does **not** replace bb's sidebar thread list. It registers only
+its own Canvas entry; the sidebar stays bb's own. The canvas's **Thread
+windows** panel draws its own list, scoped to that panel.
+
+> Earlier versions registered into the exclusive `experimental_threadList`
+> slot, which silently replaced the sidebar list everywhere in bb. That is
+> removed. If you are on such a version, pin bb's list back with
+> `bb settings ui set sidebar.threadListProvider thread-list/thread-list`, or
+> update — the current version needs no setting.
 
 See [PLUGIN_OVERVIEW.md](./PLUGIN_OVERVIEW.md) for what the plugin does, the
 coordinate-frame design, and the known constraints (notably the large frontend
@@ -73,11 +71,11 @@ a window would look like a conflicting edit to an agent drawing at the same time
 | --- | --- |
 | `app.tsx` | `navPanel` registration: the sidebar entry and page route |
 | `canvas/CanvasPage.tsx` | Excalidraw surface, floating layer, scene persistence |
-| `canvas/SidebarThreadList.tsx` | The registered sidebar thread list: filter, grouping, sections, expand/collapse |
-| `canvas/ThreadRow.tsx` | The one thread row, shared by the sidebar list and the canvas panel |
+| `canvas/SidebarThreadList.tsx` | Sidebar-style thread list: filter, grouping, sections, expand/collapse. **Currently unreferenced** after the sidebar takeover was removed |
+| `canvas/ThreadRow.tsx` | The one thread row, used by the canvas **Thread windows** panel |
 | `canvas/ThreadLauncher.tsx` | Canvas **Thread windows** panel: opens floating windows instead of navigating |
-| `canvas/ThreadListActionsMenu.tsx` | Organize / Sort by / New section, written through `uiPreferences` |
-| `canvas/threadGrouping.ts` | Pure pinned / section / project / machine bucketing |
+| `canvas/ThreadListActionsMenu.tsx` | Organize / Sort by / New section, written through `uiPreferences`. **Currently unreferenced** |
+| `canvas/threadGrouping.ts` | Pure pinned / section / project / machine bucketing. **Currently unreferenced** |
 | `canvas/threadTree.ts` | Pure parent/child grouping |
 | `canvas/ThreadWindow.tsx` | Window chrome wrapping the host's `ThreadChat` |
 | `canvas/useWindowDrag.ts` | Pointer drag and corner resize |

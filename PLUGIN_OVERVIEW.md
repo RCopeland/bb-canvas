@@ -20,18 +20,14 @@ It reaches bb from its own **Canvas** sidebar entry.
   component, so you get the actual timeline — tool calls, diffs, file rows,
   queued messages, drafts — plus the real composer, attachments, @-mentions,
   and the thread's own permission mode.
-- **One thread list, two surfaces.** The plugin registers a real
-  `experimental_threadList`, so its list *is* bb's sidebar thread list — not a
-  lookalike. The same component also draws the collapsible **Thread windows**
-  panel on the canvas, so both surfaces come from one row implementation.
-  Threads appear in bb's parent/child tree with per-row expand/collapse, split
-  into Pinned, your custom sections, and project or machine groups, with an
-  Active/Archived filter. Each row carries the host actions the built-in view
-  has — pin, mark read, archive, open in the main app — plus drag-to-split, and
-  threads waiting on you are flagged. The row shows a presence dot and the
-  title; the rest of the status detail (indicator, unread, pinned, split pane,
-  activity, branch, machine, project, provider, last activity) reaches assistive
-  tech through each row's accessible name.
+- **A thread list in the launcher.** The canvas's **Thread windows** panel lists
+  your threads in bb's parent/child tree, with per-row expand/collapse and the
+  host actions the built-in view has — pin, mark read, archive, open in the
+  main app — plus drag-to-split. Threads waiting on you are flagged. The row
+  shows a presence dot and the title; the rest of the status detail (indicator,
+  unread, pinned, split pane, activity, branch, machine, project, provider, last
+  activity) reaches assistive tech through each row's accessible name.
+  This panel is canvas-local: it does *not* replace bb's own sidebar list.
 - **Start a thread without leaving the canvas.** The **New thread** button in
   the launcher header opens bb's real new-thread composer inline — prompt,
   attachments, @-mentions, provider/model/reasoning, project, environment, and
@@ -129,55 +125,62 @@ pipeline, so sends lose the thread's resolved execution settings.
 the thread's own resolved default and renders the picker as a dimmed label, so
 a plugin surface can never widen a thread's permission mode.
 
-## The sidebar list is registered, not copied
+## The list is canvas-local; bb's sidebar list is untouched
 
-The plugin's thread list is registered through `experimental_threadList`, which
-makes it bb's real sidebar thread list while the plugin is enabled.
+Earlier versions of this plugin registered its thread list through
+`experimental_threadList`, which made it bb's real sidebar thread list while the
+plugin was enabled. **That registration has been removed.** The plugin now
+registers only its `navPanel`; bb's own sidebar list is what you see in the
+sidebar, always, with no setting to undo.
 
-This is a deliberate reversal of an earlier design. The first version of this
-plugin drew a *lookalike* list on the canvas — same row vocabulary, same
-actions — and it was the wrong shape for the problem. bb exposes no way to
-embed its own list: the bundled list's component is a local closure inside the
-bundled `thread-list` plugin with no export, and the host's renderer mounts
-whichever plugin registered into the slot. So a canvas-side list could only ever
-be a reimplementation, and a reimplementation of host UI drifts from the host.
+Why it was removed: the slot is exclusive and activates automatically, so
+enabling a drawing plugin silently replaced the sidebar thread list *everywhere*
+in bb. That is a surprising amount of blast radius for a plugin whose headline
+feature is a canvas, and it meant this plugin owned the presentation of every
+thread in the sidebar.
 
-Three consequences are worth stating plainly:
+The original motivation for registering was sound and is worth recording, but it
+does not change the conclusion:
 
-- **The slot is exclusive, and activation is automatic.** bb resolves
-  `__automatic__` to the first registered list whose plugin id is not the
-  bundled `thread-list/thread-list`. Registering therefore replaces the sidebar
-  list everywhere, with no action from the user. That is a product-level
-  change, not an implementation detail, which is why it is called out in the
-  README too.
-- **The way back is a setting, not an uninstall.** Pin `thread-list/thread-list`
-  under Settings → Appearance → Sidebar, or `bb settings ui set
-  sidebar.threadListProvider thread-list/thread-list`.
-- **A replaced list owns the functionality it replaces.** The host keeps the
-  New-thread button, search, plugin nav rows, and footer — those are shared
-  surfaces and stay host-rendered — but everything about how threads are
-  presented is now this plugin's job. Anything not implemented here is
-  *missing* from the sidebar, not merely absent from the canvas.
+- **bb exposes no way to embed its own list.** The bundled list's component is a
+  local closure inside the bundled `thread-list` plugin with no export, and the
+  host's renderer mounts whichever plugin registered into the slot. So a
+  canvas-side list can only ever be a *reimplementation* of host UI — which,
+  over time, drifts from the host.
+- **The slot is a replacement, not a wrapper.** Using it to get "a copy of the
+  default list on the canvas" is not possible: you get a takeover of the
+  sidebar instead of a copy on the canvas.
 
-### What v1 covers, and what it does not
+So the canvas keeps its own list, scoped to the **Thread windows** panel, and
+bb's sidebar stays bb's. `canvas/SidebarThreadList.tsx`,
+`canvas/ThreadListActionsMenu.tsx`, and `canvas/threadGrouping.ts` are retained
+in the tree but are currently unreferenced. Re-registering is a two-line change
+in `app.tsx` if the sidebar takeover is ever wanted again; until then these
+files exist only as the path back to it.
 
-Implemented: nested threads with expand/collapse, Pinned, custom sections,
-project and machine grouping, Custom (flat) mode, an Active/Archived filter with
-paginated archived loading, per-row pin / mark read / archive / open, and
-drag-to-split. Grouping precedence is pinned → section → project/machine, so a
-thread is never listed twice and never disappears: a thread whose section no
-longer exists falls back to its project group, and an orphan nests as a root.
+### What the canvas panel covers, and what it does not
 
-The list header carries an actions menu with **Organize** (By project / By
-machine / Custom), **Sort by** (Last activity / Created / Title, re-selecting a
-field to reverse it), and **New section**. These write the host's own
-`sidebar.*` preferences through `uiPreferences`, so they stay consistent with
-the CLI and with other windows; a failed write is reported rather than
-silently reverted. **New project** is deliberately absent: the SDK exposes only
+Implemented in the canvas's **Thread windows** panel: bb's parent/child tree
+with per-row expand/collapse, per-row pin / mark read / archive / open, and
+drag-to-split.
+
+These belonged to the sidebar takeover and went with it, so they are *not* on
+the canvas today: Pinned / custom-section / project / machine grouping, the
+Active/Archived filter, the Organize / Sort by / New section actions menu, and
+Custom (flat) mode. Any of them can be ported into `ThreadLauncher.tsx` on
+request — the grouping logic in `threadGrouping.ts` is still present and tested.
+
+## Known constraints
+
+The now-unreferenced sidebar modules carry functionality worth porting to the
+canvas if it is ever missed. The actions menu wrote the host's own `sidebar.*`
+preferences through `uiPreferences`, so those settings stay consistent with the
+CLI and with other windows; a failed write was reported rather than silently
+reverted. **New project** was deliberately absent from it: the SDK exposes only
 `projects.create(args)`, which needs a full project payload and belongs in a
 dialog, not a menu.
 
-Not implemented, and therefore lost relative to bb's bundled list:
+Also not available on the canvas, for the same reason:
 
 - **Drag-to-reorder** and manual ordering.
 - **Environment grouping** (`sidebar.threadGrouping.environment`).
@@ -221,22 +224,24 @@ These are real, and worth knowing before you rely on the plugin:
 
 ## For developers
 
-- `app.tsx` registers the `navPanel` (sidebar entry + page route) and the
-  `experimental_threadList` that makes this plugin's list the sidebar's list.
+- `app.tsx` registers the `navPanel` (sidebar entry + page route). It does
+  **not** register `experimental_threadList`; doing so is what made this
+  plugin's list take over bb's sidebar, and it was removed.
 - `canvas/CanvasPage.tsx` — the page: Excalidraw surface, floating layer, and
   debounced scene persistence.
-- `canvas/SidebarThreadList.tsx` — the registered sidebar list. Owns the filter,
-  grouping, section and expand/collapse state; delegates each row to
-  `ThreadRow`.
-- `canvas/ThreadRow.tsx` — the one row. Both surfaces render it, so there is a
-  single implementation of the per-row host hooks (drag-to-split, PR lookup) and
-  the row actions, rather than two that drift apart.
 - `canvas/ThreadLauncher.tsx` — the canvas's floating **Thread windows** panel,
-  which renders `ThreadRow` and opens windows instead of navigating.
-- `canvas/threadGrouping.ts` — pure pinned/section/project/machine bucketing,
-  kept dependency-free so its rules are unit-testable.
+  which renders `ThreadRow` and opens windows instead of navigating. This is the
+  plugin's only thread list now.
+- `canvas/ThreadRow.tsx` — the one row, rendering the per-row host hooks
+  (drag-to-split, PR lookup) and the row actions.
 - `canvas/threadTree.ts` — pure parent/child grouping, kept dependency-free so
   its rules are unit-testable.
+- `canvas/SidebarThreadList.tsx` — the former sidebar list. **Unreferenced**;
+  retained as the path back to the sidebar takeover, and the only consumer of
+  `ThreadListActionsMenu.tsx` and `threadGrouping.ts`.
+- `canvas/threadGrouping.ts` — pure pinned/section/project/machine bucketing,
+  kept dependency-free so its rules are unit-testable. **Unreferenced** (still
+  tested).
 - `canvas/ThreadWindow.tsx` — window chrome around the host's `ThreadChat`.
 - `canvas/useWindowDrag.ts` — pointer drag and corner resize.
 - `canvas/json.ts` — converts Excalidraw's live element objects to strict JSON

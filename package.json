@@ -1,5 +1,5 @@
 {
-  "name": "bb-canvas",
+  "name": "bb-plugin-canvas",
   "version": "0.1.0",
   "type": "module",
   "engines": {

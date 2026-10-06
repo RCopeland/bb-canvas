@@ -1,18 +1,22 @@
-// The sidebar thread list, registered through `experimental_threadList`.
+// The sidebar thread list. UNREFERENCED — nothing imports this file.
 //
-// This is bb's REAL sidebar list while the plugin is enabled — not a copy of
-// it. That distinction is the whole reason this file exists: the canvas panel
-// alone was a hand-rolled reimplementation that could drift from the host, and
-// the host exposes no way to embed its own list. Registering into the slot
-// makes one implementation the actual list.
+// This was registered through `experimental_threadList`, which made it bb's
+// REAL sidebar list while the plugin was enabled, rather than a copy of it.
+// That registration was removed: taking over the sidebar everywhere in bb is
+// far too much blast radius for a canvas plugin, and it is not what was wanted
+// (the goal was a thread list on the canvas, which the slot cannot deliver).
 //
-// READ THIS BEFORE CHANGING THE SLOT: the slot is EXCLUSIVE and activation is
+// Kept in the tree as the path back to that behavior, together with
+// `ThreadListActionsMenu.tsx` and `threadGrouping.ts` — this file is the only
+// consumer of both. Re-registering means re-adding the slot in `app.tsx`.
+//
+// READ THIS IF YOU RE-REGISTER: the slot is EXCLUSIVE and activation is
 // automatic. `__automatic__` resolves to "the first registered list whose
 // plugin id is not the bundled `thread-list/thread-list`", so simply having this
 // plugin enabled replaces bb's sidebar thread list everywhere. To get bb's own
 // list back, pin `thread-list/thread-list` under
 // Settings → Appearance → Sidebar. That is a product-level consequence, so it
-// is documented in the README as well.
+// belongs in the README too.
 //
 // The host owns the chrome around this component. The New-thread button, the
 // search action, the plugin nav rows, and the sidebar footer are all
