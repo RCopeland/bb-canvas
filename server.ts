@@ -115,6 +115,9 @@ export const rpcContract = defineRpcContract({
       bounds: boundsSchema,
       placement: placementSchema,
     }),
+    /** Advertises this method so agents can discover it. */
+    experimental_description:
+      "Read the stored canvas scene, its revision, and the current element bounds and placement hints.",
   },
   canvas_save: {
     input: z.object({
@@ -127,15 +130,24 @@ export const rpcContract = defineRpcContract({
       baseRevision: z.number().optional(),
     }),
     output: z.object({ saved: z.boolean(), revision: z.number() }),
+    /** Advertises this method so agents can discover it. */
+    experimental_description:
+      "Replace the whole canvas scene, guarding against a stale baseRevision. The browser's normal save path; prefer canvas_draw to add without removing.",
   },
   windows_load: {
     input: z.null(),
     /** `null` means no layout was ever stored (a first run). */
     output: z.object({ windows: z.array(windowSchema).nullable() }),
+    /** Advertises this method so agents can discover it. */
+    experimental_description:
+      "Read the saved floating-window layout. Null means no layout was ever stored (a first run).",
   },
   windows_save: {
     input: z.object({ windows: z.array(windowSchema) }),
     output: z.object({ saved: z.boolean() }),
+    /** Advertises this method so agents can discover it. */
+    experimental_description:
+      "Replace the floating-window layout. Kept separate from the scene so moving a window never bumps the scene revision.",
   },
   canvas_draw: {
     /**
@@ -156,6 +168,9 @@ export const rpcContract = defineRpcContract({
       bounds: boundsSchema,
       placement: placementSchema,
     }),
+    /** Advertises this method so agents can discover it. */
+    experimental_description:
+      "Additively draw on the canvas: merge elements into the stored scene without removing anything already there. The method an agent should use.",
   },
 });
 
@@ -294,5 +309,10 @@ export default async function plugin(bb: BbPluginApi) {
         ...describe(next),
       };
     },
+  }, {
+    // Makes these methods visible to `bb plugin rpc list` and to agents, which
+    // is what lets an agent discover `canvas_draw` instead of being told about
+    // it out of band. This is a REGISTER-level option, not a per-method field.
+    experimental_discoverable: true,
   });
 }
